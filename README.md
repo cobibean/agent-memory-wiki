@@ -4,6 +4,7 @@
 
 **Obsidian-powered daily logs, session logs, and context-reset handoffs for AI agents.**
 
+[![Validate](https://github.com/cobibean/agent-memory-wiki/actions/workflows/validate.yml/badge.svg)](https://github.com/cobibean/agent-memory-wiki/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/agent--skills-ready-7C3AED.svg)](skills/)
 [![Obsidian](https://img.shields.io/badge/Obsidian-vault-8B5CF6.svg)](https://obsidian.md/)
