@@ -1,0 +1,8 @@
+memory_wiki:
+  vault_path: /absolute/path/to/your/Obsidian Vault
+  daily_logs_dir: Daily Logs
+  session_logs_dir: Session Logs
+  janitor_reports_dir: Janitor Reports
+  default_lookback: 24h
+  notify_policy: review-only
+  secret_policy: references-only

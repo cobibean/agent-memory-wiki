@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Example wrapper for a scheduled /wikijanitor run.
+# Copy this file, edit the variables, and keep it private to your runtime.
+
+PROFILE="${HERMES_PROFILE:-default}"
+HERMES_BIN="${HERMES_BIN:-hermes}"
+OBSIDIAN_VAULT_PATH="${OBSIDIAN_VAULT_PATH:-/absolute/path/to/your/Obsidian Vault}"
+TIMEOUT_SECONDS="${WIKI_JANITOR_TIMEOUT:-300}"
+LOCK_FILE="${TMPDIR:-/tmp}/agent-memory-wiki-janitor-${PROFILE}.lock"
+
+export OBSIDIAN_VAULT_PATH
+
+run_janitor() {
+  "$HERMES_BIN" ${PROFILE:+-p "$PROFILE"} chat -Q -q \
+    "Load the wikijanitor skill and run a last-24h memory-wiki reconciliation. Follow the marker contract: print [[WIKI_JANITOR_NOTIFY]] only if user review is needed, or [[WIKI_JANITOR_SILENT]] if routine/no activity. Do not print raw secrets."
+}
+
+output=""
+status=0
+
+if ! output=$(flock -n "$LOCK_FILE" timeout "$TIMEOUT_SECONDS" bash -c "$(declare -f run_janitor); run_janitor" 2>&1); then
+  status=$?
+fi
+
+if printf '%s' "$output" | grep -q '\[\[WIKI_JANITOR_NOTIFY\]\]'; then
+  printf '%s\n' "$output" | sed -n '/\[\[WIKI_JANITOR_NOTIFY\]\]/,$p'
+  exit 0
+fi
+
+if printf '%s' "$output" | grep -q '\[\[WIKI_JANITOR_SILENT\]\]'; then
+  exit 0
+fi
+
+if [[ "$status" -ne 0 ]]; then
+  printf 'wiki janitor failed safely for profile %s; raw output suppressed. Check local logs.\n' "$PROFILE"
+  exit "$status"
+fi
+
+printf 'wiki janitor produced unmarked output for profile %s; raw output suppressed. Check local logs.\n' "$PROFILE"
+exit 1
