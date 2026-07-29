@@ -62,7 +62,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   exit 0
 fi
 # Invoked by trap below; ShellCheck cannot follow trap references.
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 cleanup() {
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
