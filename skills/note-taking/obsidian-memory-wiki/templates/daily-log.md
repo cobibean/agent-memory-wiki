@@ -12,9 +12,12 @@ tags:
 ## Day summary
 
 ## Sessions
+
 - [[Session Logs/YYYY-MM-DD-topic|Topic]] — one-line outcome.
 
 ## Decisions
+
+## Verified outcomes
 
 ## Lessons / gotchas
 
@@ -26,6 +29,10 @@ tags:
 
 ## Routing candidates
 
-## Artifacts
+## Authoritative artifacts
 
 ## Janitor reports
+
+## Later updates
+
+<!-- Preserve earlier correct snapshots and add timestamped changes here. -->

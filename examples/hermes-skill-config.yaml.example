@@ -1,0 +1,7 @@
+# Merge into the intended Hermes profile config.yaml.
+skills:
+  config:
+    obsidian_memory_wiki:
+      vault_path: /absolute/path/to/your/agent-wiki
+      janitor_timeout_seconds: 300
+      janitor_max_turns: 100
