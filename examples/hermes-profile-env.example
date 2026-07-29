@@ -1,4 +1,0 @@
-# Agent Memory Wiki
-# Copy into your Hermes profile .env or equivalent runtime env.
-
-OBSIDIAN_VAULT_PATH=/absolute/path/to/your/Obsidian Vault

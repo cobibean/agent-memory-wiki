@@ -1,42 +1,167 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
+umask 077
 
-# Example wrapper for a scheduled /wikijanitor run.
-# Copy this file, edit the variables, and keep it private to your runtime.
+# Portable scheduled wrapper for the obsidian-memory-wiki janitor phase.
+# Copy to the active Hermes profile's scripts directory and configure through
+# environment variables. Raw agent output is never forwarded or persisted.
 
-PROFILE="${HERMES_PROFILE:-default}"
+PROFILE="${HERMES_PROFILE:-}"
+if [[ -z "$PROFILE" && -n "${HERMES_HOME:-}" && "$HERMES_HOME" == */profiles/* ]]; then
+  PROFILE="$(basename "$HERMES_HOME")"
+fi
+PROFILE="${PROFILE:-default}"
 HERMES_BIN="${HERMES_BIN:-hermes}"
-OBSIDIAN_VAULT_PATH="${OBSIDIAN_VAULT_PATH:-/absolute/path/to/your/Obsidian Vault}"
-TIMEOUT_SECONDS="${WIKI_JANITOR_TIMEOUT:-300}"
-LOCK_FILE="${TMPDIR:-/tmp}/agent-memory-wiki-janitor-${PROFILE}.lock"
+OBSIDIAN_VAULT_PATH="${OBSIDIAN_VAULT_PATH:-}"
+TIMEOUT_SECONDS="${WIKI_JANITOR_TIMEOUT_SECONDS:-}"
+MAX_TURNS="${WIKI_JANITOR_MAX_TURNS:-}"
+LOCK_ROOT="${WIKI_JANITOR_LOCK_ROOT:-${HERMES_HOME:-${HOME}/.hermes}/run}"
+NOTIFY_MARKER='[[WIKI_JANITOR_NOTIFY]]'
+NOTIFY_END_MARKER='[[WIKI_JANITOR_END]]'
+SILENT_MARKER='[[WIKI_JANITOR_SILENT]]'
 
-export OBSIDIAN_VAULT_PATH
-
-run_janitor() {
-  "$HERMES_BIN" ${PROFILE:+-p "$PROFILE"} chat -Q -q \
-    "Load the wikijanitor skill and run a last-24h memory-wiki reconciliation. Follow the marker contract: print [[WIKI_JANITOR_NOTIFY]] only if user review is needed, or [[WIKI_JANITOR_SILENT]] if routine/no activity. Do not print raw secrets."
+safe_alert() {
+  printf 'Memory-wiki janitor alert for profile %s: %s\n' "$PROFILE" "$1"
 }
 
-output=""
-status=0
-
-if ! output=$(flock -n "$LOCK_FILE" timeout "$TIMEOUT_SECONDS" bash -c "$(declare -f run_janitor); run_janitor" 2>&1); then
-  status=$?
+if [[ ! "$PROFILE" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
+  safe_alert 'invalid profile name; run not started.'
+  exit 2
+fi
+if ! command -v "$HERMES_BIN" >/dev/null 2>&1; then
+  safe_alert 'Hermes executable was not found.'
+  exit 2
 fi
 
-if printf '%s' "$output" | grep -q '\[\[WIKI_JANITOR_NOTIFY\]\]'; then
-  printf '%s\n' "$output" | sed -n '/\[\[WIKI_JANITOR_NOTIFY\]\]/,$p'
+config_get() {
+  "$HERMES_BIN" -p "$PROFILE" config get "$1" 2>/dev/null || true
+}
+
+OBSIDIAN_VAULT_PATH="${OBSIDIAN_VAULT_PATH:-$(config_get skills.config.obsidian_memory_wiki.vault_path)}"
+TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-$(config_get skills.config.obsidian_memory_wiki.janitor_timeout_seconds)}"
+MAX_TURNS="${MAX_TURNS:-$(config_get skills.config.obsidian_memory_wiki.janitor_max_turns)}"
+TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-300}"
+MAX_TURNS="${MAX_TURNS:-100}"
+
+if [[ ! "$TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || [[ ! "$MAX_TURNS" =~ ^[1-9][0-9]*$ ]]; then
+  safe_alert 'timeout/max-turn values must be positive integers.'
+  exit 2
+fi
+if [[ -z "$OBSIDIAN_VAULT_PATH" || ! -d "$OBSIDIAN_VAULT_PATH" ]]; then
+  safe_alert 'configured vault path is missing or is not an existing directory.'
+  exit 2
+fi
+
+mkdir -p "$LOCK_ROOT" || {
+  safe_alert 'could not create the profile-local lock directory.'
+  exit 2
+}
+LOCK_DIR="$LOCK_ROOT/agent-memory-wiki-${PROFILE}.lock"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  safe_alert 'another janitor run is already active.'
+  exit 0
+fi
+# Invoked by trap below; ShellCheck cannot follow trap references.
+# shellcheck disable=SC2329
+cleanup() {
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+prompt=$(cat <<'PROMPT'
+Load the obsidian-memory-wiki skill and run its Wiki Janitor Maintenance phase for the last 24 hours.
+
+Output contract:
+- If there is no activity, or only routine reconciliation with no user attention needed, output exactly [[WIKI_JANITOR_SILENT]].
+- Only for warnings, gaps, uncertainty, or actions requiring user attention, output an exact line [[WIKI_JANITOR_NOTIFY]], then a concise internal digest, then an exact line [[WIKI_JANITOR_END]].
+- Do not output either marker inside prose, code fences, tool output, or quoted text.
+- Never print raw secrets.
+PROMPT
+)
+
+cmd=("$HERMES_BIN" -p "$PROFILE" chat -Q --skills obsidian-memory-wiki --max-turns "$MAX_TURNS" -q "$prompt")
+export OBSIDIAN_VAULT_PATH
+
+run_bounded() {
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$TIMEOUT_SECONDS" "${cmd[@]}" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+
+seconds = int(sys.argv[1])
+process = subprocess.Popen(sys.argv[2:], start_new_session=True)
+try:
+    raise SystemExit(process.wait(timeout=seconds))
+except subprocess.TimeoutExpired:
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()
+    raise SystemExit(124)
+PY
+  elif command -v timeout >/dev/null 2>&1; then
+    timeout "$TIMEOUT_SECONDS" "${cmd[@]}"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$TIMEOUT_SECONDS" "${cmd[@]}"
+  else
+    return 125
+  fi
+}
+
+output=$(run_bounded 2>&1)
+status=$?
+
+# Exact-line marker handling comes before status handling because Hermes can
+# print a complete final answer and still exit non-zero during teardown.
+silent_count=$(printf '%s\n' "$output" | grep -Fxc "$SILENT_MARKER" || true)
+notify_count=$(printf '%s\n' "$output" | grep -Fxc "$NOTIFY_MARKER" || true)
+end_count=$(printf '%s\n' "$output" | grep -Fxc "$NOTIFY_END_MARKER" || true)
+
+if [[ "$silent_count" -eq 1 && "$notify_count" -eq 0 && "$end_count" -eq 0 ]]; then
   exit 0
 fi
 
-if printf '%s' "$output" | grep -q '\[\[WIKI_JANITOR_SILENT\]\]'; then
+if [[ "$silent_count" -eq 0 && "$notify_count" -eq 1 && "$end_count" -eq 1 ]]; then
+  digest=$(printf '%s\n' "$output" | awk -v start="$NOTIFY_MARKER" -v stop="$NOTIFY_END_MARKER" '
+    $0 == start {
+      if (seen_start || seen_end) exit 2
+      seen_start=1; inside=1; next
+    }
+    $0 == stop {
+      if (!inside || seen_end) exit 2
+      seen_end=1; inside=0; next
+    }
+    inside {print}
+    END {if (!seen_start || !seen_end || inside) exit 1}
+  ')
+  parse_status=$?
+  if [[ "$parse_status" -ne 0 || -z "$digest" ]]; then
+    safe_alert 'notify marker envelope was malformed or empty; raw output suppressed.'
+    exit 1
+  fi
+  # Never forward model-authored digest text. Even maintained regex filters can
+  # miss new credential formats. The protected report is the review surface.
+  printf '%s\n' 'Memory-wiki janitor completed with review-worthy findings. Open the newest Janitor Report in the configured vault.'
   exit 0
 fi
 
-if [[ "$status" -ne 0 ]]; then
-  printf 'wiki janitor failed safely for profile %s; raw output suppressed. Check local logs.\n' "$PROFILE"
-  exit "$status"
-fi
-
-printf 'wiki janitor produced unmarked output for profile %s; raw output suppressed. Check local logs.\n' "$PROFILE"
+case "$status" in
+  124) safe_alert "run exceeded ${TIMEOUT_SECONDS} seconds; raw output suppressed." ;;
+  125) safe_alert 'no supported timeout command or python3 fallback was available.' ;;
+  0)   safe_alert 'run returned unmarked or malformed output; raw output suppressed.' ;;
+  *)   safe_alert "Hermes exited with status ${status}; raw output suppressed." ;;
+esac
 exit 1

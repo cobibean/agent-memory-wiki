@@ -1,231 +1,164 @@
-<div align="center">
-
 # Agent Memory Wiki
 
-**Obsidian-powered daily logs, session logs, and context-reset handoffs for AI agents.**
+**Portable Obsidian-backed operating memory for AI agents.**
 
 [![Validate](https://github.com/cobibean/agent-memory-wiki/actions/workflows/validate.yml/badge.svg)](https://github.com/cobibean/agent-memory-wiki/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Agent Skills](https://img.shields.io/badge/agent--skills-ready-7C3AED.svg)](skills/)
-[![Obsidian](https://img.shields.io/badge/Obsidian-vault-8B5CF6.svg)](https://obsidian.md/)
-[![Hermes](https://img.shields.io/badge/Hermes-%2Fprepforreset-111827.svg)](https://hermes-agent.nousresearch.com/docs)
-[![No Secrets](https://img.shields.io/badge/secrets-never%20log%20values-red.svg)](docs/security-and-secret-hygiene.md)
 
-<table>
-  <tr>
-    <td align="center"><a href="#quick-start"><b>Quick Start</b></a><br/>install the skills</td>
-    <td align="center"><a href="#make-prepforreset-a-slash-command"><b>/prepforreset</b></a><br/>make it a command</td>
-    <td align="center"><a href="#copy-paste-prompt-for-your-agent"><b>Agent Prompt</b></a><br/>paste into your agent</td>
-    <td align="center"><a href="docs/scheduling-wikijanitor.md"><b>Wiki Janitor</b></a><br/>optional nightly review</td>
-  </tr>
-</table>
+Agent Memory Wiki gives an agent three coordinated workflows:
 
-Created by **Jacobi Lange** — [@cobi_bean](https://twitter.com/cobi_bean) / [GitHub @cobibean](https://github.com/cobibean)
+- safe Markdown/Obsidian vault operations;
+- `/prepforreset` daily and session capture with a lean handoff;
+- an optional scheduled janitor that reconciles missed or incomplete capture.
 
-</div>
+Bundle version 2.0.0 uses one canonical skill, `obsidian-memory-wiki`. The familiar `obsidian`, `prepforreset`, and `wikijanitor` skills are small compatibility aliases so existing slash commands keep working without maintaining three competing implementations.
 
----
+## What it is—and is not
 
-## What this is
+The wiki is curated operating memory. It should preserve decisions, verified outcomes, artifacts, blockers, and next actions without dumping transcripts.
 
-Agent Memory Wiki is a small skill bundle for giving AI agents a durable, human-readable memory trail in an Obsidian vault.
+It is **not** a universal source of truth. Project repositories, manifests, issue trackers, and domain systems remain authoritative for their own artifacts. The wiki points back to them.
 
-It turns this:
+It is also not a secret store. Never write tokens, passwords, private keys, raw `.env` contents, or credential-bearing URLs into notes.
 
-> “I’m about to reset the context window. Preserve what matters.”
+## Quick start for Hermes
 
-into this:
+Prerequisites:
 
-```text
-Daily Logs/2026-06-13.md
-Session Logs/2026-06-13-agent-memory-wiki-open-source.md
-Janitor Reports/2026-06-14-last-24h.md
-```
-
-The core command is **`/prepforreset`**: a context-reset workflow that writes a curated Daily Log and Session Log, then returns a short copy/paste handoff for the next agent context.
-
-This is not raw transcript dumping. The notes are meant to be useful to humans and future agents: decisions, rationale, alternatives, artifacts, open loops, gotchas, and source references.
-
-## The bundle
-
-| Skill | Required? | What it does |
-| --- | --- | --- |
-| [`obsidian`](skills/note-taking/obsidian/SKILL.md) | Yes | Low-level vault operations: resolve the vault path, read/search/write notes, stay inside the vault root. |
-| [`prepforreset`](skills/note-taking/prepforreset/SKILL.md) | Yes | Manual context-reset capture: creates/updates Daily Logs and Session Logs, then returns a lean handoff. |
-| [`wikijanitor`](skills/note-taking/wikijanitor/SKILL.md) | Optional | Scheduled/manual reconciliation: reviews recent sessions and existing notes, writes Janitor Reports, flags gaps. |
-
-## Quick start
-
-### Option A — Hermes Agent
-
-Clone this repo, then install the skills into your Hermes profile:
+- Bash and Python 3;
+- Hermes Agent;
+- an existing Markdown/Obsidian vault, or permission to initialize one.
 
 ```bash
 git clone https://github.com/cobibean/agent-memory-wiki.git
 cd agent-memory-wiki
 
-# Pick your Obsidian vault path.
-export OBSIDIAN_VAULT_PATH="$HOME/Documents/Obsidian Vault"
+# Existing vault, named profile
+bash scripts/install-hermes.sh \
+  --profile my-agent \
+  --vault "$HOME/Documents/Obsidian/agent-wikis/my-agent-wiki"
 
-# Default profile install. For a named profile, add: --profile my-profile
-bash scripts/install-hermes.sh --vault "$OBSIDIAN_VAULT_PATH"
+# Or create a starter vault safely
+bash scripts/install-hermes.sh \
+  --profile my-agent \
+  --vault "$HOME/Documents/Obsidian/agent-wikis/my-agent-wiki" \
+  --init-vault
 ```
 
-Then reload skills in your running Hermes session/gateway if needed:
+`--profile` is authoritative and overrides an inherited `HERMES_HOME`. Use `--hermes-home PATH` when you intentionally want an exact destination. Use `--dry-run` to inspect resolved destinations first.
 
-```text
-/reload-skills
-```
+The installer writes the vault path to `skills.config.obsidian_memory_wiki.vault_path` in the target profile `config.yaml`; `.env` remains reserved for secrets.
 
-Now try:
+The default install includes the canonical parent and all three compatibility aliases. Use `--no-aliases` for parent-only installations.
+
+Then start a new session or run `/reload-skills` where available and try:
 
 ```text
 /prepforreset
 ```
 
-### Option B — Any agent that supports Markdown skills
+See [Installation](docs/installation.md) for upgrade, rollback, generic-agent, and readiness details.
 
-Copy these folders into whatever skill directory your agent/harness uses:
+## Recommended vault shape
+
+Use one isolated vault per persistent agent:
 
 ```text
-skills/note-taking/obsidian/
-skills/note-taking/prepforreset/
-skills/note-taking/wikijanitor/   # optional
+<agent>-wiki/
+├── Home.md
+├── Vault Guide.md
+├── Daily Logs/
+├── Session Logs/
+├── Janitor Reports/
+├── Templates/
+└── .obsidian/
 ```
 
-Then configure a vault path for the agent runtime:
+Do not point every agent at one shared vault. Do not automatically use an entire code repository as a vault merely because it contains Markdown.
+
+`--init-vault` creates this starter structure without overwriting existing files. Open it in Obsidian and enable the built-in Daily Notes and Templates plugins.
+
+## Canonical skill and commands
+
+| Surface | Purpose |
+|---|---|
+| `obsidian-memory-wiki` | Canonical behavior and source of truth |
+| `/obsidian` | Compatibility alias for vault operations |
+| `/prepforreset` | Compatibility alias for reset capture |
+| `/wikijanitor` | Compatibility alias for manual reconciliation |
+
+New cron jobs and automation must load only:
+
+```text
+--skills obsidian-memory-wiki
+```
+
+## Optional scheduled janitor
+
+A recurring janitor is opt-in. Manual reset capture is useful for most persistent agents; a daily model-powered reconciliation is justified only when activity and missed-capture risk warrant it.
+
+The included wrapper:
+
+- runs on Linux and stock macOS;
+- uses a portable atomic-directory lock;
+- uses a Python process-group timeout, with `timeout`/`gtimeout` fallback when Python is unavailable;
+- preserves the selected profile;
+- validates an exact marker envelope but emits only a constant wrapper-authored notification;
+- suppresses all unmarked raw output.
+
+Follow [Scheduling Wiki Janitor](docs/scheduling-wikijanitor.md) and verify a real created report and delivery—not only scheduler status.
+
+## Updating and rollback
+
+To update:
 
 ```bash
-OBSIDIAN_VAULT_PATH="/absolute/path/to/your/Obsidian Vault"
+git pull --ff-only
+bash scripts/install-hermes.sh --profile my-agent --vault "/path/to/vault"
 ```
 
-Create the expected folders inside the vault:
+Each real install creates a unique timestamped backup under the target Hermes home and backs up replaced skills plus the prior profile `config.yaml` when present. The installer prints the exact backup path.
 
-```text
-Daily Logs/
-Session Logs/
-Janitor Reports/
+To roll back, stop the affected gateway/session, restore the desired skill directories and `config.yaml` from that backup, then start a new session or reload skills. The installer never deletes vault notes.
+
+See [CHANGELOG.md](CHANGELOG.md) for compatibility changes.
+
+## Validation
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 tools/validate.py
+python3 -m unittest discover -s tests -v
+bash -n scripts/install-hermes.sh
+bash -n scripts/wiki-janitor-cron-wrapper.sh.example
+shellcheck scripts/install-hermes.sh scripts/wiki-janitor-cron-wrapper.sh.example
 ```
 
-Finally, add `/prepforreset` as a command/alias that loads and follows the `prepforreset` skill.
-
-## Make `prepforreset` a slash command
-
-### Hermes
-
-Hermes exposes installed skills as slash commands by normalizing the skill frontmatter `name`.
-
-Because the skill is named:
-
-```yaml
-name: prepforreset
-```
-
-it becomes:
-
-```text
-/prepforreset
-```
-
-after the skill command cache is refreshed. Usually one of these is enough:
-
-```text
-/reload-skills
-```
-
-or restart the gateway / start a fresh session.
-
-If the command does not appear in a platform autocomplete menu, still try typing `/prepforreset` manually. Some chat platforms cap visible slash-command menus even when the command is dispatchable.
-
-### Generic agents
-
-If your agent runtime has a command registry, create an alias like:
-
-```text
-/prepforreset -> Load the prepforreset skill, load the obsidian companion skill, write the Daily Log and Session Log into OBSIDIAN_VAULT_PATH, then return the short handoff.
-```
-
-If your agent has no command registry, keep the prompt below as a reusable snippet.
-
-## Copy-paste prompt for your agent
-
-Paste this into your agent after installing the skills:
-
-```md
-You have access to an Agent Memory Wiki skill bundle with these skills:
-
-- `obsidian`: low-level Obsidian vault operations.
-- `prepforreset`: context-reset capture into Daily Logs and Session Logs.
-- `wikijanitor`: optional review/reconciliation into Janitor Reports.
-
-Set up `/prepforreset` as a command or reusable trigger.
-
-When I type `/prepforreset` or say “prep for reset” / “prepare for a context window”:
-
-1. Load and follow the `prepforreset` skill.
-2. Load and follow the `obsidian` companion skill before any vault operation.
-3. Resolve `OBSIDIAN_VAULT_PATH` or ask me for the vault path if it is missing.
-4. Ensure these folders exist inside the vault:
-   - `Daily Logs/`
-   - `Session Logs/`
-   - `Janitor Reports/`
-5. Write a curated Daily Log and Session Log. Do not dump the raw transcript.
-6. Include decisions, rationale, rejected alternatives when important, artifacts, lessons/gotchas, explicit open loops, inferred open loops clearly labeled, routing candidates, and source references.
-7. Never write secret values. Reference only where credentials live, such as `.env` or secret manager paths.
-8. Return a short response with the note paths and a lean copy/paste handoff for the next context.
-
-If this runtime supports slash commands, register `/prepforreset` as an alias for that workflow. If it does not, treat this prompt as the command definition.
-```
-
-A longer standalone prompt lives at [`docs/agent-copy-paste-prompt.md`](docs/agent-copy-paste-prompt.md).
-
-## What gets written
-
-- `Daily Logs/YYYY-MM-DD.md` — standalone day summary.
-- `Session Logs/YYYY-MM-DD-short-topic-slug.md` — deeper session distillation.
-- `Janitor Reports/YYYY-MM-DD-last-24h.md` — optional review/reconciliation note.
-
-## Design principles
-
-- **Curate, don’t dump.** Durable understanding, not transcript hoarding.
-- **Human-readable first.** Agents benefit from headings, dates, links, rationale, source references.
-- **The wiki is source of truth.** The chat handoff is only a bridge across context windows.
-- **No silent mutation outside Obsidian.** Routing candidates can suggest memory/skill/backlog updates, but the skill does not patch other stores unless separately asked.
-- **Secrets are never note content.** Record credential locations, never values.
-- **Portable by default.** The skills do not assume a private fleet, host path, or vendor runtime.
+CI runs behavioral tests on both Ubuntu and macOS, including profile targeting, paths with spaces, idempotent replacement, portable timeout behavior, lock contention, and output-marker safety.
 
 ## Repository layout
 
 ```text
-skills/       Agent skills you install into your agent runtime.
-docs/         Setup, slash-command, scheduling, and safety docs.
-templates/    Human-readable note templates.
-scripts/      Optional installer and janitor wrapper examples.
-examples/     Environment/config examples.
-tools/        Local validation script used by CI.
+skills/note-taking/obsidian-memory-wiki/   Canonical skill, references, templates
+skills/note-taking/{obsidian,prepforreset,wikijanitor}/
+                                           Compatibility aliases
+scripts/install-hermes.sh                  Profile-aware installer
+scripts/wiki-janitor-cron-wrapper.sh.example
+                                           Portable scheduled wrapper
+tests/                                     Behavioral regression tests
+tools/validate.py                          Schema/link/secret/package validation
+docs/                                      Installation and operating guides
 ```
 
 ## Documentation
 
-| Doc | Purpose |
-| --- | --- |
-| [`docs/installation.md`](docs/installation.md) | Detailed installation for Hermes and generic agents. |
-| [`docs/slash-command-setup.md`](docs/slash-command-setup.md) | How to expose `/prepforreset`. |
-| [`docs/agent-copy-paste-prompt.md`](docs/agent-copy-paste-prompt.md) | Full prompt to paste into your agent. |
-| [`docs/scheduling-wikijanitor.md`](docs/scheduling-wikijanitor.md) | Optional scheduled janitor setup. |
-| [`docs/security-and-secret-hygiene.md`](docs/security-and-secret-hygiene.md) | Secret-handling rules and safe examples. |
-| [`docs/architecture.md`](docs/architecture.md) | Why the bundle is split into three skills. |
-
-## Validation
-
-Run the local validator before publishing changes:
-
-```bash
-python3 tools/validate.py
-```
-
-It checks skill frontmatter, required docs, executable scripts, template presence, and obvious secret-looking patterns.
+- [Installation](docs/installation.md)
+- [Architecture](docs/architecture.md)
+- [Slash-command setup](docs/slash-command-setup.md)
+- [Scheduling Wiki Janitor](docs/scheduling-wikijanitor.md)
+- [Security and secret hygiene](docs/security-and-secret-hygiene.md)
+- [Generic agent copy/paste prompt](docs/agent-copy-paste-prompt.md)
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+MIT. See [LICENSE](LICENSE).

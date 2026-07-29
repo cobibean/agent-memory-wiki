@@ -12,17 +12,29 @@ tags:
 
 # Session Log — YYYY-MM-DD — Topic
 
+## Goal
+
+## Current status
+
 ## Summary
 
 ## Context
 
-## Decisions
+## Decisions and assumptions
 
 ## Alternatives considered
 
-## Lessons / gotchas
-
 ## Artifacts touched
+
+## Commands, tests, and outcomes
+
+## Verification
+
+## Blockers and cautions
+
+## Next actions
+
+## Lessons / gotchas
 
 ## Open loops
 
@@ -33,3 +45,7 @@ tags:
 ## Routing candidates
 
 ## Source references
+
+## Continuation updates
+
+<!-- Append timestamped updates here when later work continues this authoritative note. Preserve earlier state as history. -->

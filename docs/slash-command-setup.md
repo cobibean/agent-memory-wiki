@@ -1,45 +1,37 @@
-# Slash Command Setup
+# Slash-Command Setup
 
-## Hermes
+Hermes exposes installed skills as slash commands by normalizing the frontmatter `name`.
 
-Hermes exposes installed skills as slash commands by normalizing the skill `name` field.
-
-This frontmatter:
-
-```yaml
-name: prepforreset
-```
-
-becomes:
+The canonical behavioral package is:
 
 ```text
-/prepforreset
+obsidian-memory-wiki
 ```
 
-After installing the skill, reload skills:
+Compatibility aliases retain:
+
+```text
+/obsidian
+/prepforreset
+/wikijanitor
+```
+
+The installer includes aliases by default. Use `--no-aliases` only when command continuity is unnecessary and users will invoke the parent skill directly.
+
+After installation, start a new session or run:
 
 ```text
 /reload-skills
 ```
 
-If you are using a long-running gateway, restart or reload it if the command cache does not refresh.
+where that command is available. If a long-running gateway still has a stale slash-command cache, restart only the affected profile gateway after checking for active work.
 
-Some messaging platforms cap visible command menus. If `/prepforreset` does not show in autocomplete, type it manually before assuming it is missing.
-
-## Generic command registry
-
-Map `/prepforreset` to this behavior:
+New automation must load:
 
 ```text
-Load `prepforreset`, load `obsidian`, resolve OBSIDIAN_VAULT_PATH, write/update Daily Logs and Session Logs, then return the lean context-reset handoff.
+--skills obsidian-memory-wiki
 ```
 
-Map `/wikijanitor` to this behavior:
+Do not create new cron or workflow dependencies on `wikijanitor,obsidian` or `prepforreset,obsidian`; those are compatibility names rather than behavioral sources of truth.
 
-```text
-Load `wikijanitor`, load `obsidian`, review recent sessions and existing memory-wiki notes, create a Janitor Report if there was activity, and notify only for review/uncertainty.
-```
-
-## No command registry
-
-If your runtime has no slash commands, use the copy-paste prompt in [`agent-copy-paste-prompt.md`](agent-copy-paste-prompt.md). The agent can treat phrases like “prep for reset” as the trigger.
+For another runtime, map the familiar commands to the parent’s Vault Operations, Reset Preparation, and Wiki Janitor Maintenance phases.

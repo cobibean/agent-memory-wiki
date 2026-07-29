@@ -5,23 +5,31 @@ Thanks for improving Agent Memory Wiki.
 ## Local checks
 
 ```bash
+python3 -m pip install -r requirements-dev.txt
 python3 tools/validate.py
+python3 -m unittest discover -s tests -v
+bash -n scripts/install-hermes.sh
+bash -n scripts/wiki-janitor-cron-wrapper.sh.example
+shellcheck scripts/install-hermes.sh scripts/wiki-janitor-cron-wrapper.sh.example
 ```
 
-## Skill style
+Run installer and wrapper tests only against disposable homes and vaults. Never use an active Hermes profile or production vault for fixture data.
 
-- Keep each `SKILL.md` focused on reusable agent behavior.
-- Put long setup explanations in `docs/` instead of bloating the skill.
-- Do not add private hostnames, tokens, vault paths, or incident-specific operational history.
-- Prefer examples with placeholders like `/path/to/Obsidian Vault`.
-- Keep secret handling conservative: locations are OK, values are not.
+## Skill architecture
 
-## Commit style
+- `obsidian-memory-wiki` is the sole behavioral source of truth.
+- Compatibility aliases must stay concise and retain only a minimal safe fallback.
+- Put branch-specific detail in the parent’s `references/` or `templates/` directories.
+- Do not reintroduce duplicated reset, vault, or janitor implementations.
 
-Use conventional-style subjects when practical:
+## Safety and portability
 
-```text
-docs: clarify slash command setup
-fix: tighten janitor secret scan guidance
-feat: add generic agent install notes
-```
+- Do not add private hostnames, tokens, vault paths, delivery IDs, or incident-specific topology.
+- Support both Ubuntu and stock macOS; syntax-only checks are not runtime proof.
+- Keep unmarked agent output suppressed in scheduled wrappers.
+- Preserve explicit profile targeting, path containment, unique backups, and non-destructive vault initialization.
+- Add behavioral regression coverage for every installer or wrapper fix.
+
+## Pull requests
+
+Describe the user-visible change, compatibility impact, tests run, and any remaining manual verification. Keep unrelated changes out of the branch.
